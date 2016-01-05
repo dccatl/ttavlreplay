@@ -1,0 +1,51 @@
+
+  function loadDDL() {
+	  //$(function ()
+	  //{
+		//-----------------------------------------------------------------------
+		// 2) Send a http request with AJAX http://api.jquery.com/jQuery.ajax/
+		//-----------------------------------------------------------------------
+
+
+		$('#output').html(dateStr);
+
+		$.ajax({
+		  //url: 'http://ttwebrcvr.thingtech.com:8989/api.php?date=2014-08-22',
+		  url: 'api.php',                  //the script to call to get data
+		  data: dateStr,                        //you can insert url argumnets here to pass to api.php
+										   //for example "id=5&parent=6"
+		  dataType: 'json',                //data format
+		  success: function(data)          //on recieve of reply
+		  {
+
+			alert("success");
+			//var id = data[0];              //get id
+			//var vname = data[1];           //get name
+			var htmlString = ""
+			var newOption = ""
+			//--------------------------------------------------------------------
+			// 3) Update html content
+			//--------------------------------------------------------------------
+			//$('#output').html("<b>id: </b>"+id+"<b> name: </b>"+vname); //Set output element html
+			for (var i=0; i<data.length; i++) {
+				htmlString += "<b>Date: </b>" + data[i].date + "<b> Device: </b>" + data[i].device_name + "</br>";
+				newOption = "<option value='" + data[i].device_name + "'>" + data[i].device_name + "</option>";
+				$("#select").append(newOption).selectmenu('refresh');
+			}
+			//$('#output').html(htmlString); //Set output element html
+			//recommend reading up on jquery selectors they are awesome
+			// http://api.jquery.com/category/selectors/
+		  },
+		  error: function(XMLHttpRequest, textStatus, errorThrown) {
+			alert(errorThrown);
+			alert(XMLHttpRequest.responsText);
+			alert(textStatus);
+		  }
+		});
+
+	  //});
+	}
+	function updateDate () {
+  		dateStr = "date=" + datePicker.value;
+  		loadDDL;
+  	}

@@ -1,0 +1,211 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+
+<html xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" lang="en">
+    <head>
+        <meta http-equiv="content-type" content="text/html; charset=UTF-8"/>
+        <!--
+            Numerex Vehicle Position Demo
+
+            Prototype of moving vehicle AVL map using POC ReST'ful Web Service
+
+            Revision History:
+            ===============================================================
+            2014-08-21: DCC - Genesis
+        -->
+        <title>Numerex Vehicle Locations</title>
+        <script type='text/javascript' src='http://code.jquery.com/jquery-1.4.2.js'></script>
+        <script src="https://maps.googleapis.com/maps/api/js?v=3.exp&sensor=false"></script>
+        <script type="text/javascript" src="http://google-maps-utility-library-v3.googlecode.com/svn/trunk/styledmarker/src/StyledMarker.js"></script>
+        <style type='text/css'>
+            html, body {
+                width: 100%;
+                height: 100%;
+            }
+
+            #map-canvas {
+                height:100%;
+                width:100%;
+                top:0px;
+                left:0px;
+                right:0px;
+                bottom:0px;
+                overflow: hidden;
+            }
+            .labels {
+                 color: red;
+                 background-color: white;
+                 font-family: "Lucida Grande", "Arial", sans-serif;
+                 font-size: 10px;
+                 font-weight: bold;
+                 text-align: center;
+                 width: 40px;
+                 border: 2px solid black;
+                 white-space: nowrap;
+            }
+        </style>
+
+        <script type='text/javascript'>
+                var vMarkers = [];
+                var vPolys = [];
+                var map;
+                var path;
+                var marker;
+                var minutes = "";
+                var earlyLate = "";
+                var vehicle = "";
+                var color;
+   				// calculate map height and width based on screen size:
+				var hScale = 0.95 //height scale
+				var wScale = 0.72 //width scale
+				var mapWidth = screen.width;
+				var mapHeight = screen.height;
+
+				window.onresize = function(event) {
+                    var el = $("#map-canvas");
+                    el.css("position", "absolute");
+                    el.css("top", "0px");
+                    el.css("left", "0px");
+                    el.css("right", "0px");
+                    el.css("bottom", "0px");
+                    el.css("height", $("body").height());
+                    el.css("width", $("body").width());
+                    el.css("overflow", "hidden");
+                    google.maps.event.trigger(map, 'resize');
+                    map.setZoom(map.getZoom());
+                }
+
+                function initialize() {
+                    var myLatlng = new google.maps.LatLng(27.9815, -82.4758);
+                    var myOptions = {
+                        zoom: 13,
+                        center: myLatlng,
+                        width: $("body").width(),
+                        height: $("body").height(),
+                        mapTypeId: google.maps.MapTypeId.ROADMAP
+                    }
+                    map = new google.maps.Map(document.getElementById("map-canvas"), myOptions);
+                    var transitLayer = new google.maps.TransitLayer();
+                    transitLayer.setMap(map);
+                    google.maps.event.addDomListener(window, 'load', initialize);
+                    google.maps.event.addDomListener(window, "resize", function() {
+                        var center = map.getCenter();
+                        google.maps.event.trigger(map, "resize");
+                        map.setCenter(center);
+                    });
+                    $(window).trigger('resize');
+
+                      // Try HTML5 geolocation
+                      if(navigator.geolocation) {
+  	                    navigator.geolocation.getCurrentPosition(function(position) {
+                          var pos = new google.maps.LatLng(position.coords.latitude,
+                                                           position.coords.longitude);
+                         map.setCenter(pos);
+                        }, function() {
+                          handleNoGeolocation(true);
+                        });
+                      } else {
+                        // Browser doesn't support Geolocation
+                        handleNoGeolocation(false);
+                      }
+                    loadVehicles();
+                };
+        </script>
+    </head>
+    <body onload="initialize()">
+        <div id="map-canvas"></div>
+        <script type='text/javascript'>
+        function loadVehicles() {
+            $(document).ready(function() {
+                $.ajax({
+		            type: "GET",
+		            timeout: 1000, //in milliseconds
+		          	// Call ThingTech Vehicle Position web service (http://ttwebrcvr.thingtech.com:8888/all_vehicles)
+		          	// 	via JSON proxy to avoid cross-domain posting security concerns
+		            //url: 'http://jsonp.jit.su/?callback=?&url=http://ttwebrcvr.thingtech.com:8888/all_vehicles',
+					url: 'http://ttwebrcvr.thingtech.com:8888/all_vehicles?callback=?',
+		            dataType: 'json',
+		            success: function(vehicles){
+		                //alert('I am here')
+                      $.each(vehicles, function(index, d){
+                            if(d.hdg>=0 && d.hdg<22.5) direction="NORTH";
+                            else if(d.hdg>=22.5 && d.hdg<67.5) direction="NORTHEAST";
+                            else if(d.hdg>=67.5 && d.hdg<112.5) direction="EAST";
+                            else if(d.hdg>=112.5 && d.hdg<157.5) direction="SOUTHEAST";
+                            else if(d.hdg>=157.5 && d.hdg<202.5) direction="SOUTH";
+                            else if(d.hdg>=202.5 && d.hdg<247.5) direction="SOUTHWEST";
+                            else if(d.hdg>=247.5 && d.hdg<292.5) direction="WEST";
+                            else if(d.hdg>=292.5 && d.hdg<338) direction="NORTHWEST";
+                            else direction="NORTH";
+                            vehicle = "";
+
+                            for (var i=0; i<vMarkers.length; i++) {
+                                if( vMarkers[i][0] === d.vehicle ) {
+                                    var path;
+                                    var latlng = new google.maps.LatLng(d.lat,d.lon);
+                                    vMarkers[i][1].setPosition(latlng);
+                                    vMarkers[i][1].setTitle('Vehicle: ' + d.vehicle + '\r\n' + 'Last Update: ' + d.gps_ts + '\r\n' + 'Traveling: ' + direction + '\r\n' + 'at: ' + d.spd + ' MPH' + '\r\n' + d.ev_type);
+                                    path = vPolys[i][1].getPath();
+                                    path.push(latlng);
+                                    vPolys[i][1].setPath(path);
+                                    vehicle = vMarkers[i][0];
+                                    break;
+                                }
+                            }
+                            if( vehicle == "") {
+                                color = get_random_color();
+                                marker = new StyledMarker({
+                                    styleIcon:new StyledIcon(StyledIconTypes.BUBBLE,{color:color, fore: "ffffff",text: d.vehicle}),
+                                    position: new google.maps.LatLng(d.lat,d.lon),
+                                    title:    'Vehicle: ' + d.vehicle + '\r\n' + 'Last Update: ' + d.gps_ts + '\r\n' + 'Traveling: ' + direction + ' at: ' + d.spd + ' MPH' + '\r\n' + d.ev_type,
+                                    map: map
+                                });
+                                var polyOptions = {
+                                    strokeColor: color,
+                                    strokeOpacity: 1.0,
+                                    map: map,
+                                    strokeWeight: 3
+                                };
+                                vMarkers.push([d.vehicle, marker]);
+                                poly = new google.maps.Polyline(polyOptions);
+                                var latlng = new google.maps.LatLng(d.lat,d.lon);
+                                var path = poly.getPath();
+                                path.push(latlng);
+                                poly.setPath(path);
+                                vPolys.push([d.vehicle, poly])
+                                vehicle = "";
+                            }
+                        });//$.each(vehicles, function(index, d){
+		            },
+		            error: function(error, vehicles){
+			            console.log(error)
+		            }
+                }); //$.ajax({
+
+                }); //$.getJSON(...., function(vehicles) {
+            //}); //$(document).ready(function() {
+        } //function loadVehicles()
+
+        setInterval(loadVehicles, 60000); // setInterval(function(){
+
+        function get_random_color() {
+            var letters = '0123456789ABCDEF'.split('');
+            var color = '#';
+            for (var i = 0; i < 6; i++ ) {
+                color += letters[Math.round(Math.random() * 15)];
+            }
+            return color;
+        }
+
+        function handleNoGeolocation(errorFlag) {
+          if (errorFlag) {
+            var content = 'Error: The Geolocation service failed.';
+          } else {
+            var content = 'Error: Your browser does not support geolocation.';
+          }
+        }
+        </script>
+    </body>
+</html>
+
+
+
